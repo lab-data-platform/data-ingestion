@@ -2,7 +2,7 @@
 
 Ingestão das fontes de dados para a camada **bronze** da plataforma `lab-data`, em arquitetura **serverless**: AWS Lambda para extrair, AWS Step Functions para orquestrar cada pipeline e Amazon EventBridge para agendar e avisar quando um asset fica pronto. Visão geral em [data-platform](https://github.com/lab-data-platform/data-platform).
 
-> 📝 **Estrutura em revisão.** Este README descreve a organização proposta para o repositório. Nenhum código foi criado ainda: a estrutura é revisada e confirmada antes de começar a **camada 4** ([ROADMAP](https://github.com/lab-data-platform/data-platform/blob/main/ROADMAP.md#camada-4--ingestão)).
+> ✅ **Estrutura aprovada** em 2026-11-02. Este README descreve a organização do repositório; o código é criado a partir dela na **camada 4** ([ROADMAP](https://github.com/lab-data-platform/data-platform/blob/main/ROADMAP.md#camada-4--ingestão)).
 
 ---
 
