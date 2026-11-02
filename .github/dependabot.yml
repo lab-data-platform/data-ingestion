@@ -1,0 +1,15 @@
+# Atualização de dependências: o GitHub abre PRs para a develop quando sai versão nova.
+# Versões continuam fixadas; cada atualização passa pelo CI antes de entrar.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]
