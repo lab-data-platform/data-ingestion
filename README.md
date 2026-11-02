@@ -87,8 +87,8 @@ data-ingestion/
 │                   └── sgs.py                  #   class Sgs(Extractor): só o método extract()
 │
 ├── assets/                                 # REGISTRO DE ASSETS: contrato de dados de cada asset
-│   ├── api/financeiro/
-│   │   └── bcb.yml                         #   api.bcb.sgs (fonte externa)
+│   ├── source/financeiro/
+│   │   └── bcb.yml                         #   source.bcb.sgs (fonte externa: API, arquivo, banco...)
 │   └── bronze/financeiro/
 │       └── bcb.yml                         #   bronze.bcb.sgs: schema, dono, classificação,
 │                                           #   criticidade, frescor, qualidade, depende_de
