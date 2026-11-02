@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit:
+    name: pre-commit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v7
+
+      - name: Reaproveitar o cache dos hooks
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Instalar o pre-commit
+        run: pipx install pre-commit
+
+      - name: Rodar os hooks em todos os arquivos
+        run: pre-commit run --all-files --show-diff-on-failure
+        env:
+          SKIP: no-commit-to-branch
