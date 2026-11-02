@@ -22,7 +22,7 @@ Ingestão das fontes de dados para a camada **bronze** da plataforma `lab-data`,
 
 - **O código mora neste repositório.** O `make build` gera um `.zip` com o pacote Python, e o `make apply` (Terraform) envia esse zip para as Lambdas. Ninguém edita código no console da AWS: o próximo `apply` sobrescreveria a mudança. Cada Lambda leva a tag `GitCommit` com o commit de origem.
 - **Uma pipeline = um YAML + uma classe Python.** O Terraform lê `pipelines/**/*.yml` e cria, para cada arquivo, a Lambda, a state machine, a agenda, a role IAM e a tabela bronze.
-- **Assets e eventos:** cada pipeline produz um asset declarado em `assets/`, e publica `AssetUpdated` quando ele fica pronto ([eventos](https://github.com/lab-data-platform/data-platform/blob/main/docs/eventos.md)).
+- **Assets, linhagem e eventos:** cada pipeline produz um asset com contrato **ODCS** em `assets/`, segue o [padrão de assets](https://github.com/lab-data-platform/data-platform/blob/main/docs/assets.md) da plataforma, emite **OpenLineage** em toda execução e publica `AssetUpdated` quando o asset fica pronto ([eventos](https://github.com/lab-data-platform/data-platform/blob/main/docs/eventos.md)).
 
 ---
 
@@ -35,14 +35,21 @@ A organização segue estas separações, como num projeto Airflow com `plugins/
 | **Framework** (o que é comum a toda ingestão) | `src/labdata/sdk/` | `plugins/<empresa>/sdk/`, hooks, validators |
 | **Governança** (regras sobre o dado: contratos, qualidade, linhagem, classificação) | `src/labdata/sdk/governance/` | `validators/`, registro de assets, data contracts |
 | **Fontes** (o que é específico de cada uma) | `src/labdata/sources/<domínio>/<fonte>/` | `dags/<camada>/<fonte>/` |
-| **Registro de assets** (o que é cada dado) | `assets/<camada>/<domínio>/<fonte>.yml` | `plugins/<empresa>/assets/<camada>/<fonte>` |
+| **Registro de assets** (o que é cada dado: contrato ODCS) | `assets/<camada>/<domínio>/<fonte>/<entidade>.yml` | `plugins/<empresa>/assets/<camada>/<fonte>` |
+| **Lib de assets** (os contratos como constantes importáveis) | `src/labdata/assets/<camada>/<domínio>/<fonte>.py` | As constantes de asset importadas pelas DAGs |
 | **Pipelines** (o que roda, como e quando) | `pipelines/<domínio>/<fonte>/<entidade>.yml` | Arquivos de DAG |
 
 ```
 data-ingestion/
 │
 ├── src/
-│   └── labdata/                                # PACOTE PYTHON: vira o .zip das Lambdas
+│   └── labdata/                                # PACOTE PYTHON: vira o .zip das Lambdas (namespace: sem __init__.py)
+│       │
+│       ├── assets/                             # LIB DE ASSETS: lê os contratos de assets/ (namespace: sem __init__.py)
+│       │   ├── source/financeiro/
+│       │   │   └── bcb.py                      #   labdata.assets.source.financeiro.bcb.sgs
+│       │   └── bronze/financeiro/
+│       │       └── bcb.py                      #   labdata.assets.bronze.financeiro.bcb.sgs (id, s3_prefix, table, uri)
 │       │
 │       ├── sdk/                                # FRAMEWORK da ingestão
 │       │   ├── core/                           #   abstrações e modelos, sem nenhuma dependência da AWS
@@ -60,19 +67,20 @@ data-ingestion/
 │       │   │
 │       │   ├── layers/                         #   camadas de dado (arquitetura medalhão)
 │       │   │   └── bronze/                     #     hoje, só o bronze; outra camada entra como pasta irmã
-│       │   │       ├── layout.py               #       caminhos: <fonte>/<entidade>/<partições>/ingestion_date=<data>/
+│       │   │       ├── layout.py               #       caminhos: <domínio>/<fonte>/<entidade>/<partições>/ingestion_date=<data>/
 │       │   │       └── writer.py               #       grava o arquivo original + manifesto
 │       │   │
 │       │   ├── governance/                     #   GOVERNANÇA: as regras sobre o dado, num lugar só
 │       │   │   ├── contracts/                  #     contratos
-│       │   │   │   ├── assets.py               #       carrega e valida os arquivos de assets/
+│       │   │   │   ├── assets.py               #       carrega os contratos ODCS e deriva os nomes físicos do ID
 │       │   │   │   └── events.py               #       modelo do evento AssetUpdated
 │       │   │   ├── quality/                    #     qualidade (o papel dos validators)
-│       │   │   │   ├── rules.py                #       regras declaradas nos contratos (nao_vazio, obrigatorio...)
+│       │   │   │   ├── rules.py                #       regras do quality dos contratos ODCS (rowCount, required...)
 │       │   │   │   ├── validator.py            #       aplica as regras a um arquivo
 │       │   │   │   └── quarantine.py           #       grava em _quarantine/ com o motivo
 │       │   │   ├── lineage/                    #     linhagem
-│       │   │   │   └── manifest.py             #       colunas técnicas (_ingested_at, _source, _run_id...)
+│       │   │   │   ├── manifest.py             #       colunas técnicas (_ingested_at, _source, _run_id...)
+│       │   │   │   └── openlineage.py          #       emite os eventos OpenLineage (START, COMPLETE, FAIL)
 │       │   │   └── classification.py           #     classificações (publico, interno, confidencial, pessoal)
 │       │   │
 │       │   └── runtime/                        #   como o código roda: hoje Lambda, amanhã Airflow
@@ -86,16 +94,16 @@ data-ingestion/
 │                   ├── client.py               #   o que é comum ao BCB (URL base, janelas de consulta)
 │                   └── sgs.py                  #   class Sgs(Extractor): só o método extract()
 │
-├── assets/                                 # REGISTRO DE ASSETS: contrato de dados de cada asset
-│   ├── source/financeiro/
-│   │   └── bcb.yml                         #   source.bcb.sgs (fonte externa: API, arquivo, banco...)
-│   └── bronze/financeiro/
-│       └── bcb.yml                         #   bronze.bcb.sgs: schema, dono, classificação,
-│                                           #   criticidade, frescor, qualidade, depende_de
+├── assets/                                 # REGISTRO DE ASSETS: um contrato ODCS v3.2.0 por asset
+│   ├── source/financeiro/bcb/
+│   │   └── sgs.yml                         #   source.financeiro.bcb.sgs (fonte externa: API, arquivo, banco...)
+│   └── bronze/financeiro/bcb/
+│       └── sgs.yml                         #   bronze.financeiro.bcb.sgs: schema, dono, qualidade, frescor e as
+│                                           #   extensões da plataforma (classificação, criticidade, depende_de...)
 │
 ├── pipelines/                              # PIPELINES: 1 arquivo = 1 pipeline
 │   └── financeiro/bcb/
-│       └── sgs.yml                         #   asset produzido, handler, agenda, memória, timeout,
+│       └── sgs.yml                         #   asset produzido (ID), handler, agenda, memória, timeout,
 │                                           #   input padrão (ex.: séries) e janela da carga histórica
 │
 ├── infra/                                  # TERRAFORM
@@ -123,11 +131,11 @@ data-ingestion/
 │   │   └── sources/financeiro/bcb/
 │   │       └── test_sgs.py
 │   ├── integration/                        #   nível 2: Lambda no container oficial + moto
-│   ├── contracts/                          #   valida assets/ e pipelines/ contra os JSON Schemas
+│   ├── contracts/                          #   valida assets/ (datacontract lint + extensões) e pipelines/
 │   └── fixtures/financeiro/bcb/sgs/        #   respostas reais da API, gravadas para os testes
 │
 ├── local/                                  # AMBIENTE LOCAL (nível 2)
-│   ├── docker-compose.yml                  #   moto (S3, SSM, EventBridge) + container da Lambda
+│   ├── docker-compose.yml                  #   moto (S3, SSM, EventBridge) + container da Lambda + Marquez
 │   ├── Dockerfile                          #   imagem public.ecr.aws/lambda/python com o pacote
 │   ├── seed.sh                             #   simula os contratos do foundation e do lakehouse no moto
 │   └── verify.sh                           #   confere arquivo, manifesto, quarentena e evento
@@ -154,7 +162,8 @@ data-ingestion/
 5. **Toda regra sobre o dado mora em `sdk/governance/`**: contrato, qualidade, quarentena, linhagem e classificação. As camadas (`layers/`) e as fontes usam essas regras, mas não as redefinem.
 6. **`layers/` segue a arquitetura medalhão**: cada camada é uma pasta (`bronze/`, e no futuro outras, se houver código Python para elas), mesmo que hoje só exista uma.
 7. **Pasta só existe quando tem conteúdo.** A `cvm/` entra na etapa 4b, e não antes; a `silver/` em `layers/`, só se a silver tiver código neste pacote.
-8. **Os nomes principais são reexportados no `__init__.py` de cada pacote**, para os imports não ficarem longos (`from labdata.sdk.layers.bronze import BronzeWriter`).
+8. **Os nomes principais são reexportados no `__init__.py` de cada pacote**, para os imports não ficarem longos (`from labdata.sdk.layers.bronze import BronzeWriter`). Exceção: `labdata/` e `labdata/assets/` **não têm `__init__.py`**, porque são *namespace packages* compartilhados com outros repositórios ([padrão de assets](https://github.com/lab-data-platform/data-platform/blob/main/docs/assets.md#4-lib-de-assets)).
+9. **Nenhum ID ou nome físico escrito à mão.** Caminho no S3, tabela no Glue, URI e identidade OpenLineage vêm sempre da lib (`bcb.sgs.s3_prefix`, `bcb.sgs.table`...), que os deriva do ID do contrato.
 
 ### Como fica adicionar uma fonte
 
@@ -163,7 +172,7 @@ Exemplo: o informe diário da CVM.
 | # | Arquivo | O quê |
 |---|---|---|
 | 1 | `src/labdata/sources/financeiro/cvm/inf_diario.py` | `class InfDiario(Extractor)` com o `extract()` |
-| 2 | `assets/bronze/financeiro/cvm.yml` | Contrato do `bronze.cvm.inf_diario` |
+| 2 | `assets/bronze/financeiro/cvm/inf_diario.yml` | Contrato ODCS do `bronze.financeiro.cvm.inf_diario` (a constante na lib `labdata.assets` sai dele) |
 | 3 | `pipelines/financeiro/cvm/inf_diario.yml` | Handler, agenda, memória, timeout |
 | 4 | `tests/unit/sources/financeiro/cvm/test_inf_diario.py` | Teste com a fixture gravada |
 | 5 | `docs/runbooks/financeiro/cvm/inf_diario.md` | Procedimentos operacionais |
@@ -178,17 +187,17 @@ O código fica no repositório; o **dado** fica no bucket do bronze (contrato `/
 
 ```
 s3://lab-data-dev-bronze-<account_id>/
-├── bcb/sgs/                                        ← asset bronze.bcb.sgs
-│   └── serie=432/                                  ← partição da fonte (ex.: cada série do SGS)
-│       └── ingestion_date=2026-11-02/              ← partição da ingestão
-│           ├── 2016-11-02_2026-11-02.json          ← arquivo COMO VEIO da API, sem alteração
-│           └── _manifest.json                      ← colunas técnicas e estatísticas
-└── _quarantine/bcb/sgs/ingestion_date=2026-11-02/  ← o que falhou na validação, com o motivo
+├── financeiro/bcb/sgs/                                       ← asset bronze.financeiro.bcb.sgs
+│   └── serie=432/                                            ← partição da fonte (ex.: cada série do SGS)
+│       └── ingestion_date=2026-11-02/                        ← partição da ingestão
+│           ├── 2016-11-02_2026-11-02.json                    ← arquivo COMO VEIO da API, sem alteração
+│           └── _manifest.json                                ← colunas técnicas e estatísticas
+└── _quarantine/financeiro/bcb/sgs/ingestion_date=2026-11-02/ ← o que falhou na validação, com o motivo
 ```
 
 - **Reexecutar o mesmo dia substitui** a mesma pasta, e nunca duplica ([governança](https://github.com/lab-data-platform/data-platform/blob/main/docs/governanca.md#5-idempotência-e-reprocessamento)).
 - O **manifesto** guarda `_ingested_at`, `_source`, `_run_id`, `_source_file`, `_partition`, a quantidade de registros e o hash do conteúdo.
-- A tabela `lab_data_dev_bronze.bcb_sgs` no Glue aponta para `bcb/sgs/` e lê as partições pelo caminho.
+- A tabela `lab_data_dev_bronze.bcb_sgs` no Glue aponta para `financeiro/bcb/sgs/` e lê as partições pelo caminho. Os dois nomes são derivados do ID ([nomes físicos](https://github.com/lab-data-platform/data-platform/blob/main/docs/assets.md#2-nomes-físicos-derivados)).
 
 ---
 
@@ -212,6 +221,7 @@ Nada foi criado ainda. **Uma linha por pipeline** em cada recurso. **Região:** 
 |---|---|
 | `data-foundation` | `alerts_topic_arn` (alertas) e `assets_event_bus_name`/`_arn` (eventos) |
 | `data-lakehouse` | `bronze_bucket`, `glue_database_bronze` e `athena_workgroup` |
+| `data-platform` | Padrão de assets e schemas de validação (`asset-extensions.schema.json`, `asset-updated.schema.json`), numa versão fixa |
 
 ---
 
@@ -239,15 +249,15 @@ make run PIPELINE=financeiro/bcb/sgs   # dispara uma execução na conta
 
 | Nível | Onde | O que cobre |
 |---|---|---|
-| 1. Unitário | `tests/unit/`, `tests/contracts/`, `infra/tests/` | Regras do `sdk/` sem rede, `extract()` de cada fonte com fixtures, YAMLs válidos contra os schemas, Terraform com provider simulado |
-| 2. Integração local | `tests/integration/` + `local/` | A Lambda no **container oficial da AWS**, gravando no S3 e publicando no EventBridge do **moto** |
+| 1. Unitário | `tests/unit/`, `tests/contracts/`, `infra/tests/` | Regras do `sdk/` sem rede, `extract()` de cada fonte com fixtures, contratos ODCS válidos (`datacontract lint` + extensões), lib de assets, Terraform com provider simulado |
+| 2. Integração local | `tests/integration/` + `local/` | A Lambda no **container oficial da AWS**, gravando no S3 e publicando no EventBridge do **moto**; eventos OpenLineage visíveis no **Marquez** |
 | 3. Real | `make run` | Execução na conta, com o fluxo inteiro visível no console do Step Functions |
 
 ## Qualidade
 
 | Verificação | Onde roda | O que cobre |
 |---|---|---|
-| Pré-commit | Na sua máquina, a cada `git commit` | Segredos (gitleaks, credenciais AWS, chaves privadas), YAML, espaços e fim de arquivo, commit direto na `main`; previsto: ruff e validação dos YAMLs de `assets/` e `pipelines/` |
+| Pré-commit | Na sua máquina, a cada `git commit` | Segredos (gitleaks, credenciais AWS, chaves privadas), YAML, espaços e fim de arquivo, commit direto na `main`; previsto: ruff, `datacontract lint` e validação das extensões em `assets/` e dos arquivos de `pipelines/` |
 | CI | GitHub Actions ([ci.yml](.github/workflows/ci.yml)), em todo PR e push na `main` e na `develop` | O mesmo pre-commit; previsto: jobs de Python (ruff + pytest), Terraform e integração local; todos obrigatórios para o merge |
 
 ```bash
