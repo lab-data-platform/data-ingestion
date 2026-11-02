@@ -1,0 +1,35 @@
+# Credenciais — nunca versionar
+*.csv.key
+*accessKeys*.csv
+*_credentials.csv
+.aws/
+.env
+.env.*
+.secrets/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+*.tfplan
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# dbt
+target/
+dbt_packages/
+logs/
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
