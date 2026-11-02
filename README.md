@@ -28,53 +28,63 @@ Ingestão das fontes de dados para a camada **bronze** da plataforma `lab-data`,
 
 ## Estrutura
 
-A organização segue quatro separações, como num projeto Airflow com `plugins/` e `dags/`:
+A organização segue estas separações, como num projeto Airflow com `plugins/` e `dags/`:
 
 | Separação | Pasta | Equivalente num projeto Airflow |
 |---|---|---|
-| **Framework** (o que é comum a toda ingestão) | `src/lab_data_ingestion/sdk/` | `plugins/<empresa>/sdk/`, hooks, validators |
-| **Fontes** (o que é específico de cada uma) | `src/lab_data_ingestion/sources/<domínio>/<fonte>/` | `dags/<camada>/<fonte>/` |
+| **Framework** (o que é comum a toda ingestão) | `src/labdata/sdk/` | `plugins/<empresa>/sdk/`, hooks, validators |
+| **Governança** (regras sobre o dado: contratos, qualidade, linhagem, classificação) | `src/labdata/sdk/governance/` | `validators/`, registro de assets, data contracts |
+| **Fontes** (o que é específico de cada uma) | `src/labdata/sources/<domínio>/<fonte>/` | `dags/<camada>/<fonte>/` |
 | **Registro de assets** (o que é cada dado) | `assets/<camada>/<domínio>/<fonte>.yml` | `plugins/<empresa>/assets/<camada>/<fonte>` |
 | **Pipelines** (o que roda, como e quando) | `pipelines/<domínio>/<fonte>/<entidade>.yml` | Arquivos de DAG |
 
 ```
 data-ingestion/
 │
-├── src/lab_data_ingestion/                 # PACOTE PYTHON: vira o .zip das Lambdas
-│   │
-│   ├── sdk/                                # FRAMEWORK da ingestão
-│   │   ├── core/                           #   abstrações e modelos, sem nenhuma dependência da AWS
-│   │   │   ├── extractor.py                #     classe base Extractor: o "molde" de toda fonte
-│   │   │   ├── models.py                   #     RawFile, ExtractRequest, RunContext, ExtractResult
-│   │   │   └── errors.py                   #     SourceUnavailable, ValidationFailed...
-│   │   ├── adapters/                       #   integrações com o mundo externo (o papel dos hooks)
-│   │   │   ├── aws/
-│   │   │   │   ├── s3.py                   #     ler e gravar objetos
-│   │   │   │   ├── ssm.py                  #     ler os contratos da plataforma
-│   │   │   │   └── eventbridge.py          #     publicar eventos
-│   │   │   └── http/
-│   │   │       └── client.py               #     cliente HTTP com timeout, retry e user-agent
-│   │   ├── bronze/                         #   regras de gravação no bronze
-│   │   │   ├── layout.py                   #     caminhos: <fonte>/<entidade>/<partições>/ingestion_date=<data>/
-│   │   │   ├── manifest.py                 #     colunas técnicas (_ingested_at, _source, _run_id...)
-│   │   │   ├── writer.py                   #     grava o arquivo original + manifesto
-│   │   │   └── quarantine.py               #     grava em _quarantine/ com o motivo
-│   │   ├── quality/                        #   validação (o papel dos validators)
-│   │   │   ├── rules.py                    #     regras declaradas nos contratos (nao_vazio, obrigatorio...)
-│   │   │   └── validator.py                #     aplica as regras a um arquivo
-│   │   ├── contracts/                      #   contratos da plataforma
-│   │   │   ├── assets.py                   #     carrega e valida os arquivos de assets/
-│   │   │   └── events.py                   #     modelo do evento AssetUpdated
-│   │   └── runtime/                        #   como o código roda: hoje Lambda, amanhã Airflow
-│   │       ├── lambda_handler.py           #     transforma um Extractor num handler de Lambda
-│   │       ├── config.py                   #     configuração vinda do ambiente (região, endpoints)
-│   │       └── logging.py                  #     log estruturado em JSON, com o run_id
-│   │
-│   └── sources/                            # FONTES: domínio → fonte → entidade
-│       └── financeiro/
-│           └── bcb/
-│               ├── client.py               #   o que é comum ao BCB (URL base, janelas de consulta)
-│               └── sgs.py                  #   class Sgs(Extractor): só o método extract()
+├── src/
+│   └── labdata/                                # PACOTE PYTHON: vira o .zip das Lambdas
+│       │
+│       ├── sdk/                                # FRAMEWORK da ingestão
+│       │   ├── core/                           #   abstrações e modelos, sem nenhuma dependência da AWS
+│       │   │   ├── extractor.py                #     classe base Extractor: o "molde" de toda fonte
+│       │   │   ├── models.py                   #     RawFile, ExtractRequest, RunContext, ExtractResult
+│       │   │   └── errors.py                   #     SourceUnavailable, ValidationFailed...
+│       │   │
+│       │   ├── adapters/                       #   integrações com o mundo externo (o papel dos hooks)
+│       │   │   ├── aws/
+│       │   │   │   ├── s3.py                   #     ler e gravar objetos
+│       │   │   │   ├── ssm.py                  #     ler os contratos da plataforma
+│       │   │   │   └── eventbridge.py          #     publicar eventos
+│       │   │   └── http/
+│       │   │       └── client.py               #     cliente HTTP com timeout, retry e user-agent
+│       │   │
+│       │   ├── layers/                         #   camadas de dado (arquitetura medalhão)
+│       │   │   └── bronze/                     #     hoje, só o bronze; outra camada entra como pasta irmã
+│       │   │       ├── layout.py               #       caminhos: <fonte>/<entidade>/<partições>/ingestion_date=<data>/
+│       │   │       └── writer.py               #       grava o arquivo original + manifesto
+│       │   │
+│       │   ├── governance/                     #   GOVERNANÇA: as regras sobre o dado, num lugar só
+│       │   │   ├── contracts/                  #     contratos
+│       │   │   │   ├── assets.py               #       carrega e valida os arquivos de assets/
+│       │   │   │   └── events.py               #       modelo do evento AssetUpdated
+│       │   │   ├── quality/                    #     qualidade (o papel dos validators)
+│       │   │   │   ├── rules.py                #       regras declaradas nos contratos (nao_vazio, obrigatorio...)
+│       │   │   │   ├── validator.py            #       aplica as regras a um arquivo
+│       │   │   │   └── quarantine.py           #       grava em _quarantine/ com o motivo
+│       │   │   ├── lineage/                    #     linhagem
+│       │   │   │   └── manifest.py             #       colunas técnicas (_ingested_at, _source, _run_id...)
+│       │   │   └── classification.py           #     classificações (publico, interno, confidencial, pessoal)
+│       │   │
+│       │   └── runtime/                        #   como o código roda: hoje Lambda, amanhã Airflow
+│       │       ├── lambda_handler.py           #     transforma um Extractor num handler de Lambda
+│       │       ├── config.py                   #     configuração vinda do ambiente (região, endpoints)
+│       │       └── logging.py                  #     log estruturado em JSON, com o run_id
+│       │
+│       └── sources/                            # FONTES: domínio → fonte → entidade
+│           └── financeiro/
+│               └── bcb/
+│                   ├── client.py               #   o que é comum ao BCB (URL base, janelas de consulta)
+│                   └── sgs.py                  #   class Sgs(Extractor): só o método extract()
 │
 ├── assets/                                 # REGISTRO DE ASSETS: contrato de dados de cada asset
 │   ├── api/financeiro/
@@ -109,7 +119,7 @@ data-ingestion/
 ├── tests/                                  # TESTES PYTHON
 │   ├── unit/                               #   nível 1: espelha o src/
 │   │   ├── sdk/
-│   │   │   └── core/ · adapters/ · bronze/ · quality/ · contracts/ · runtime/
+│   │   │   └── core/ · adapters/ · layers/ · governance/ · runtime/
 │   │   └── sources/financeiro/bcb/
 │   │       └── test_sgs.py
 │   ├── integration/                        #   nível 2: Lambda no container oficial + moto
@@ -138,10 +148,13 @@ data-ingestion/
 ### Regras da estrutura
 
 1. **O `sdk/` não conhece as fontes, e as fontes não reimplementam o `sdk/`.** Uma fonte nova só implementa o `extract()`; gravar no bronze, validar, mandar para a quarentena, logar e publicar o evento vêm do `sdk/`.
-2. **Só o `sdk/adapters/` fala com o mundo externo** (AWS, HTTP). `core/`, `bronze/` e `quality/` não importam `boto3`: são testados sem rede, e o mesmo código pode rodar no Airflow trocando só o `runtime/`. É a arquitetura de **portas e adaptadores**.
+2. **Só o `sdk/adapters/` fala com o mundo externo** (AWS, HTTP). `core/`, `layers/` e `governance/` não importam `boto3`: são testados sem rede, e o mesmo código pode rodar no Airflow trocando só o `runtime/`. É a arquitetura de **portas e adaptadores**.
 3. **Asset ≠ pipeline.** O asset diz *o que* é o dado (contrato); a pipeline diz *como e quando* ele é produzido. Um asset tem uma pipeline que o produz.
 4. **A hierarquia é sempre `<domínio>/<fonte>/<entidade>`**, igual em `sources/`, `pipelines/`, `tests/`, `fixtures/` e `docs/runbooks/`. Achou a pasta de uma fonte num lugar, acha em todos.
-5. **Pasta só existe quando tem conteúdo.** A `cvm/` entra na etapa 4b, e não antes.
+5. **Toda regra sobre o dado mora em `sdk/governance/`**: contrato, qualidade, quarentena, linhagem e classificação. As camadas (`layers/`) e as fontes usam essas regras, mas não as redefinem.
+6. **`layers/` segue a arquitetura medalhão**: cada camada é uma pasta (`bronze/`, e no futuro outras, se houver código Python para elas), mesmo que hoje só exista uma.
+7. **Pasta só existe quando tem conteúdo.** A `cvm/` entra na etapa 4b, e não antes; a `silver/` em `layers/`, só se a silver tiver código neste pacote.
+8. **Os nomes principais são reexportados no `__init__.py` de cada pacote**, para os imports não ficarem longos (`from labdata.sdk.layers.bronze import BronzeWriter`).
 
 ### Como fica adicionar uma fonte
 
@@ -149,7 +162,7 @@ Exemplo: o informe diário da CVM.
 
 | # | Arquivo | O quê |
 |---|---|---|
-| 1 | `src/lab_data_ingestion/sources/financeiro/cvm/inf_diario.py` | `class InfDiario(Extractor)` com o `extract()` |
+| 1 | `src/labdata/sources/financeiro/cvm/inf_diario.py` | `class InfDiario(Extractor)` com o `extract()` |
 | 2 | `assets/bronze/financeiro/cvm.yml` | Contrato do `bronze.cvm.inf_diario` |
 | 3 | `pipelines/financeiro/cvm/inf_diario.yml` | Handler, agenda, memória, timeout |
 | 4 | `tests/unit/sources/financeiro/cvm/test_inf_diario.py` | Teste com a fixture gravada |
