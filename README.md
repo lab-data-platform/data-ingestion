@@ -46,3 +46,15 @@ data-ingestion/
 
 - `data-foundation`: `/lab-data/<env>/foundation/alerts_topic_arn`
 - `data-lakehouse`: `/lab-data/<env>/lakehouse/bronze_bucket` e `glue_database_bronze`
+
+## Qualidade
+
+| Verificação | Onde roda | O que cobre |
+|---|---|---|
+| Pré-commit | Na sua máquina, a cada `git commit` | Segredos (gitleaks, credenciais AWS, chaves privadas), YAML, espaços e fim de arquivo, commit direto na `main` |
+| CI | GitHub Actions ([ci.yml](.github/workflows/ci.yml)), em todo PR e push na `main` | O mesmo pre-commit, em todos os arquivos; obrigatório para o merge |
+
+```bash
+pre-commit install            # uma vez por clone: ativa os hooks
+pre-commit run --all-files    # roda todos os hooks manualmente
+```
