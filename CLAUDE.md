@@ -4,6 +4,12 @@ Repositório da ingestão da plataforma `lab-data`. Regras gerais, arquitetura e
 
 ## Específico deste repositório
 
-- **Status: planejado (camada 4).** Ainda não há código. Antes de começar, confirme o escopo da camada 4 com o usuário ([roadmap](../data-platform/ROADMAP.md#camada-4--ingestão)).
-- A investigação das fontes (APIs do BCB e da CVM, layout, volume) só começa nesta camada, e não antes.
-- Depende dos contratos do `data-foundation` e do `data-lakehouse`: o lakehouse precisa estar aplicado antes.
+- **Status: camada 4 em construção.** Primeira pipeline: CDI diário (`bronze.bcb.sgs.cdi_diario`), testada nos níveis 1 e 2. Falta o Terraform (`infra/`).
+- **Estrutura aprovada no README:** siga a árvore e as 10 regras de lá. Pacote `src/labdata/` com `assets/` (lib), `sdk/` (framework) e `extractors/` (código por origem e sistema).
+- **Idioma dos nomes (ADR-0022):** código, chaves, campos e valores em inglês; texto para pessoas em português; colunas da fonte com o nome original.
+- **IDs e caminhos:** o ID do asset é um caminho, `<camada>.<origem>[.<nível>...].<entidade>`, **sem domínio** (ADR-0021). O domínio só aparece no campo `domain` do contrato. A hierarquia das pastas é o caminho do asset.
+- **Nunca escreva ID ou nome físico à mão** no código: use o asset carregado do contrato (`s3_prefix`, `table`, `uri`).
+- `labdata/` e `labdata/assets/` não têm `__init__.py` (namespace packages). Não crie esses arquivos.
+- Os schemas em `schemas/platform/` são cópias fixadas do `data-platform`; ao atualizá-los, atualize também o arquivo `ORIGEM`.
+- Antes de entregar uma mudança: `make lint`, `make test`, `make contracts` e o ciclo local (`make local-up`, `make local-test`, `make local-down`).
+- Depende dos contratos do `data-foundation` e do `data-lakehouse` (o bronze precisa estar aplicado).

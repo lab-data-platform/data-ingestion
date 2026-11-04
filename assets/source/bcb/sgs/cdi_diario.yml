@@ -1,0 +1,36 @@
+apiVersion: v3.2.0
+kind: DataContract
+id: source.bcb.sgs.cdi_diario
+name: CDI diário (fonte externa, SGS série 12)
+version: 1.0.0
+status: active
+domain: financeiro
+team:
+  name: data-ingestion
+description:
+  purpose: >-
+    Taxa DI (CDI) diária, em % ao dia, publicada pelo Banco Central na série 12 do SGS.
+    Uma observação por dia útil.
+  usage: Origem do bronze.bcb.sgs.cdi_diario.
+tags: [source, bcb, sgs]
+servers:
+  - server: bcb-sgs
+    type: api
+    location: https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados
+    description: >-
+      Janela obrigatória (dataInicial/dataFinal) de no máximo 10 anos; HTTP 404 quando não há observação
+      na janela (fim de semana, feriado ou dia ainda não publicado).
+schema:
+  - name: observacao
+    logicalType: object
+    description: Uma observação da série, como a API devolve.
+    properties:
+      - { name: data,  logicalType: string, physicalType: string, required: true, description: "Data da observação, no formato dd/mm/aaaa." }
+      - { name: valor, logicalType: string, physicalType: string, required: true, description: "Taxa DI do dia, em % ao dia, como texto com ponto decimal." }
+customProperties:
+  - { property: classification, value: public }
+  - { property: criticality,    value: medium }
+  - { property: depends_on,     value: [] }
+  - { property: trigger,        value: all }
+  - property: produced_by
+    value: { tool: external, repository: data-ingestion, reference: "Banco Central do Brasil — SGS" }

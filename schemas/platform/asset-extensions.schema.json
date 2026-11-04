@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lab-data-platform/data-platform/docs/schemas/asset-extensions.schema.json",
+  "title": "Extensões da plataforma lab-data para contratos ODCS",
+  "description": "Regras da plataforma sobre um contrato ODCS v3.2.0 (docs/assets.md). O formato ODCS em si é validado pelo datacontract-cli.",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "kind",
+    "id",
+    "version",
+    "status",
+    "domain",
+    "team",
+    "description",
+    "customProperties"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "v3.2.0"
+    },
+    "kind": {
+      "const": "DataContract"
+    },
+    "id": {
+      "type": "string",
+      "description": "<camada>.<origem>[.<nível>...].<entidade>: caminho de 2 a 6 partes depois da camada; o domínio não faz parte do ID",
+      "pattern": "^(source|bronze|silver|gold|dw|dashboard)(\\.[a-z][a-z0-9_]*){2,6}$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "status": {
+      "enum": [
+        "proposed",
+        "draft",
+        "active",
+        "deprecated",
+        "retired"
+      ]
+    },
+    "domain": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "team": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "pattern": "^data-[a-z-]+$"
+        }
+      }
+    },
+    "description": {
+      "type": "object",
+      "required": [
+        "purpose"
+      ]
+    },
+    "customProperties": {
+      "type": "array",
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "property": {
+                "const": "classification"
+              },
+              "value": {
+                "enum": [
+                  "public",
+                  "internal",
+                  "confidential",
+                  "personal"
+                ]
+              }
+            },
+            "required": [
+              "property",
+              "value"
+            ]
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "property": {
+                "const": "criticality"
+              },
+              "value": {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              }
+            },
+            "required": [
+              "property",
+              "value"
+            ]
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "property": {
+                "const": "depends_on"
+              },
+              "value": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(source|bronze|silver|gold|dw|dashboard)(\\.[a-z][a-z0-9_]*){2,6}$"
+                }
+              }
+            },
+            "required": [
+              "property",
+              "value"
+            ]
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "property": {
+                "const": "trigger"
+              },
+              "value": {
+                "enum": [
+                  "all",
+                  "any"
+                ]
+              }
+            },
+            "required": [
+              "property",
+              "value"
+            ]
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "property": {
+                "const": "produced_by"
+              },
+              "value": {
+                "type": "object",
+                "required": [
+                  "tool",
+                  "repository"
+                ],
+                "properties": {
+                  "tool": {
+                    "enum": [
+                      "lambda",
+                      "dbt",
+                      "airflow",
+                      "external"
+                    ]
+                  },
+                  "repository": {
+                    "type": "string"
+                  },
+                  "reference": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "required": [
+              "property",
+              "value"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "id": {
+            "pattern": "^source\\."
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "customProperties": {
+            "contains": {
+              "properties": {
+                "property": {
+                  "const": "produced_by"
+                },
+                "value": {
+                  "properties": {
+                    "tool": {
+                      "const": "external"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "required": [
+          "schema",
+          "servers",
+          "slaProperties"
+        ]
+      }
+    }
+  ]
+}

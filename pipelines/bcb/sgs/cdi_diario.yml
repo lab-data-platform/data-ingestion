@@ -1,0 +1,25 @@
+# Pipeline do CDI diário: série 12 do SGS → bronze.bcb.sgs.cdi_diario
+pipeline: bcb/sgs/cdi_diario
+asset: bronze.bcb.sgs.cdi_diario
+
+extractor:
+  class: labdata.extractors.bcb.sgs:Sgs
+  params:
+    series: 12
+    asset_id: bronze.bcb.sgs.cdi_diario
+    source_asset_id: source.bcb.sgs.cdi_diario
+
+schedule:
+  enabled: true
+  cron: "0 10 ? * MON-FRI *"               # 10h, de segunda a sexta
+  timezone: America/Sao_Paulo
+  reference_date: previous_business_day    # segunda → sexta
+
+resources:
+  memory_mb: 256
+  timeout_s: 60
+
+retry:                                     # retry da state machine, antes de falhar e alertar
+  attempts: 3
+  interval_s: 30
+  backoff_rate: 2

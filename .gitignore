@@ -33,3 +33,6 @@ logs/
 .vscode/
 .idea/
 .DS_Store
+
+# Build da Lambda (gerado pelo make build)
+build/

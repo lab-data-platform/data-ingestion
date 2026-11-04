@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lab-data-platform/data-ingestion/schemas/pipeline.schema.json",
+  "title": "Pipeline de ingestão",
+  "description": "Formato dos arquivos pipelines/<origem>/<níveis...>/<entidade>.yml (o caminho do asset, sem a camada).",
+  "type": "object",
+  "required": [
+    "pipeline",
+    "asset",
+    "extractor",
+    "schedule",
+    "resources",
+    "retry"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "pipeline": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(/[a-z][a-z0-9_]*){1,5}$"
+    },
+    "asset": {
+      "type": "string",
+      "pattern": "^bronze(\\.[a-z][a-z0-9_]*){2,6}$"
+    },
+    "retry": {
+      "type": "object",
+      "required": [
+        "attempts",
+        "interval_s",
+        "backoff_rate"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "interval_s": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "backoff_rate": {
+          "type": "number",
+          "minimum": 1
+        }
+      }
+    },
+    "extractor": {
+      "type": "object",
+      "required": [
+        "class"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "class": {
+          "type": "string",
+          "pattern": "^labdata\\.extractors\\.[a-z0-9_.]+:[A-Z][A-Za-z0-9]*$"
+        },
+        "params": {
+          "type": "object"
+        }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "cron",
+        "timezone",
+        "reference_date"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cron": {
+          "type": "string",
+          "description": "Expressão cron do EventBridge Scheduler (6 campos)"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "reference_date": {
+          "enum": [
+            "previous_business_day",
+            "yesterday",
+            "today"
+          ]
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "required": [
+        "memory_mb",
+        "timeout_s"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "timeout_s": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 900
+        },
+        "memory_mb": {
+          "type": "integer",
+          "minimum": 128,
+          "maximum": 10240
+        }
+      }
+    }
+  }
+}
